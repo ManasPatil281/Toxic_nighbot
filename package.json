@@ -1,0 +1,45 @@
+{
+  "name": "toxic-nightbot",
+  "version": "1.0.0",
+  "description": "YouTube chat toxicity detection bot",
+  "main": "start.js",
+  "scripts": {
+    "setup": "node setup.js",
+    "authenticate": "node authenticate.js",
+    "start": "node start.js",
+    "dev": "nodemon start.js",
+    "test": "echo \"No tests specified\" && exit 0",
+    "logs": "tail -f logs/combined.log",
+    "clean": "rm -rf logs/*.log",
+    "check-stream": "node debug/check-stream.js",
+    "debug": "node debug/debug-youtube.js",
+    "deploy": "chmod +x deploy.sh && ./deploy.sh",
+    "docker:build": "docker build -t toxic-nightbot .",
+    "docker:run": "docker-compose up -d",
+    "docker:stop": "docker-compose down",
+    "docker:logs": "docker-compose logs -f",
+    "pm2:start": "pm2 start ecosystem.config.js --env production",
+    "pm2:stop": "pm2 stop toxic-nightbot",
+    "pm2:restart": "pm2 restart toxic-nightbot",
+    "pm2:logs": "pm2 logs toxic-nightbot"
+  },
+  "keywords": [
+    "youtube",
+    "chat",
+    "moderation",
+    "ai",
+    "toxicity"
+  ],
+  "author": "Your Name",
+  "license": "MIT",
+  "dependencies": {
+    "googleapis": "^126.0.1",
+    "groq-sdk": "^0.5.0",
+    "dotenv": "^16.3.1",
+    "winston": "^3.11.0",
+    "express": "^4.18.2"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.2"
+  }
+}

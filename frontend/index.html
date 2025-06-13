@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Toxic NightBot Dashboard</title>
+    <link rel="stylesheet" href="styles.css">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <header class="header">
+            <div class="header-content">
+                <h1><i class="fas fa-robot"></i> Toxic NightBot</h1>
+                <div class="status-indicator">
+                    <span id="connection-status" class="status-dot offline"></span>
+                    <span id="status-text">Connecting...</span>
+                </div>
+            </div>
+        </header>
+
+        <!-- Channel Info -->
+        <section class="channel-info card">
+            <h2><i class="fab fa-youtube"></i> Channel Information</h2>
+            <div class="channel-details">
+                <div class="detail-item">
+                    <span class="label">Channel Name:</span>
+                    <span id="channel-name">Loading...</span>
+                </div>
+                <div class="detail-item">
+                    <span class="label">Channel ID:</span>
+                    <span id="channel-id">Loading...</span>
+                </div>
+                <div class="detail-item">
+                    <span class="label">Live Stream:</span>
+                    <span id="stream-status">Checking...</span>
+                </div>
+                <div class="detail-item">
+                    <span class="label">Live Chat ID:</span>
+                    <span id="chat-id">N/A</span>
+                </div>
+            </div>
+        </section>
+
+        <!-- Statistics -->
+        <section class="stats-section">
+            <h2><i class="fas fa-chart-line"></i> Moderation Statistics</h2>
+            <div class="stats-grid">
+                <div class="stat-card messages">
+                    <div class="stat-icon"><i class="fas fa-comments"></i></div>
+                    <div class="stat-content">
+                        <div class="stat-number" id="total-messages">0</div>
+                        <div class="stat-label">Messages Processed</div>
+                    </div>
+                </div>
+                <div class="stat-card warnings">
+                    <div class="stat-icon"><i class="fas fa-triangle-exclamation"></i></div>
+                    <div class="stat-content">
+                        <div class="stat-number" id="total-warnings">0</div>
+                        <div class="stat-label">Warnings</div>
+                    </div>
+                </div>
+                <div class="stat-card deletions">
+                    <div class="stat-icon"><i class="fas fa-trash-can"></i></div>
+                    <div class="stat-content">
+                        <div class="stat-number" id="total-deletions">0</div>
+                        <div class="stat-label">Deletions</div>
+                    </div>
+                </div>
+                <div class="stat-card timeouts">
+                    <div class="stat-icon"><i class="fas fa-user-clock"></i></div>
+                    <div class="stat-content">
+                        <div class="stat-number" id="total-timeouts">0</div>
+                        <div class="stat-label">Timeouts</div>
+                    </div>
+                </div>
+                <div class="stat-card bans">
+                    <div class="stat-icon"><i class="fas fa-user-slash"></i></div>
+                    <div class="stat-content">
+                        <div class="stat-number" id="total-bans">0</div>
+                        <div class="stat-label">Bans</div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Live Logs -->
+        <section class="logs-section card">
+            <div class="logs-header">
+                <h2><i class="fas fa-stream"></i> Live Activity Log</h2>
+                <div class="log-controls">
+                    <button id="clear-logs" class="btn">
+                        <i class="fas fa-eraser"></i> Clear
+                    </button>
+                    <button id="pause-logs" class="btn">
+                        <i class="fas fa-pause"></i> Pause
+                    </button>
+                    <button id="export-logs" class="btn">
+                        <i class="fas fa-file-arrow-down"></i> Export
+                    </button>
+                </div>
+            </div>
+            <div class="logs-container" id="logs-container">
+                <!-- Logs will be populated here -->
+            </div>
+        </section>
+
+        <!-- Moderation History -->
+        <section class="history-section card">
+            <h2><i class="fas fa-history"></i> Moderation History</h2>
+            <div class="filter-controls">
+                <select id="action-filter">
+                    <option value="all">All Actions</option>
+                    <option value="none">None</option>
+                    <option value="warn">Warnings</option>
+                    <option value="delete">Deletions</option>
+                    <option value="timeout">Timeouts</option>
+                    <option value="ban">Bans</option>
+                </select>
+                <input type="text" id="user-search" placeholder="Search by username or ID...">
+            </div>
+            <div class="history-table-container">
+                <table class="history-table" id="history-table">
+                    <thead>
+                        <tr>
+                            <th>Time</th>
+                            <th>User</th>
+                            <th>Message</th>
+                            <th>Action</th>
+                            <th>Score</th>
+                            <th>Reason</th>
+                        </tr>
+                    </thead>
+                    <tbody id="history-tbody">
+                        <!-- History entries will be populated here -->
+                    </tbody>
+                </table>
+            </div>
+        </section>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>

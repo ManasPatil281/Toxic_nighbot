@@ -121,11 +121,11 @@ class YouTubeService {
         }
 
         try {
-            // First, get all live broadcasts for the authenticated user
+            // Reduce API calls by using minimal parts and caching
             const response = await this.youtube.liveBroadcasts.list({
-                part: 'snippet,status',
+                part: 'snippet', // Reduced from 'snippet,status' to save quota
                 mine: true,
-                maxResults: 50
+                maxResults: 5 // Reduced from 50 to save quota
             });
 
             logger.info(`Found ${response.data.items?.length || 0} total broadcasts`);
@@ -133,19 +133,14 @@ class YouTubeService {
             if (response.data.items && response.data.items.length > 0) {
                 // Log all broadcasts for debugging
                 response.data.items.forEach((item, index) => {
-                    logger.info(`${index + 1}. "${item.snippet.title}" - Status: ${item.status.lifeCycleStatus} - Chat: ${item.snippet.liveChatId ? 'Yes' : 'No'}`);
+                    logger.info(`${index + 1}. "${item.snippet.title}" - Chat: ${item.snippet.liveChatId ? 'Yes' : 'No'}`);
                 });
 
-                // Filter for active broadcasts with chat
+                // Filter for broadcasts with chat (don't check status to save quota)
                 const activeStreams = response.data.items.filter(item => {
                     const hasChat = !!item.snippet.liveChatId;
-                    const isActive = item.status.lifeCycleStatus === 'live' || 
-                                   item.status.lifeCycleStatus === 'testing' ||
-                                   item.status.lifeCycleStatus === 'liveStarting';
-                    
-                    logger.info(`Stream "${item.snippet.title}": hasChat=${hasChat}, isActive=${isActive}, status=${item.status.lifeCycleStatus}`);
-                    
-                    return hasChat && isActive;
+                    logger.info(`Stream "${item.snippet.title}": hasChat=${hasChat}`);
+                    return hasChat;
                 });
 
                 if (activeStreams.length > 0) {
@@ -157,9 +152,19 @@ class YouTubeService {
                 }
             }
             
-            logger.warn('No active live broadcasts with chat found');
+            logger.warn('No broadcasts with chat found');
             return false;
         } catch (error) {
+            if (error.code === 403 && error.message.includes('quota')) {
+                logger.error('❌ YouTube API quota exceeded!');
+                logger.info('💡 Solutions:');
+                logger.info('1. Wait until tomorrow (quota resets at midnight Pacific Time)');
+                logger.info('2. Request quota increase: https://console.cloud.google.com/');
+                logger.info('3. Reduce bot check frequency in .env (increase TOXICITY_CHECK_INTERVAL)');
+                logger.info('4. Use a different Google Cloud project with fresh quota');
+                return false;
+            }
+            
             logger.error('Error initializing live chat:', error);
             if (error.code === 401) {
                 logger.error('Authentication failed. Please re-authenticate.');
@@ -230,6 +235,37 @@ class YouTubeService {
             logger.info(`Banned user: ${channelId}`);
         } catch (error) {
             logger.error(`Error banning user ${channelId}:`, error);
+        }
+    }
+
+    async unbanUser(liveChatId, channelId) {
+        try {
+            // First, get the list of banned users to find the ban ID
+            const bansResponse = await this.youtube.liveChatBans.list({
+                liveChatId: liveChatId,
+                part: 'snippet'
+            });
+
+            // Find the ban for this specific user
+            const userBan = bansResponse.data.items.find(ban => 
+                ban.snippet.bannedUserDetails.channelId === channelId
+            );
+
+            if (!userBan) {
+                logger.warn(`No ban found for user: ${channelId}`);
+                return false;
+            }
+
+            // Delete the ban
+            await this.youtube.liveChatBans.delete({
+                id: userBan.id
+            });
+
+            logger.info(`Unbanned user: ${channelId}`);
+            return true;
+        } catch (error) {
+            logger.error(`Error unbanning user ${channelId}:`, error);
+            throw error;
         }
     }
 }

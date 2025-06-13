@@ -2,10 +2,11 @@ const config = require('../config/config');
 const logger = require('../utils/logger');
 
 class ModerationService {
-    constructor(youtubeService) {
+    constructor(youtubeService, chatStorageService) {
         this.youtubeService = youtubeService;
-        this.userWarnings = new Map(); // Track user warnings
-        this.userTimeouts = new Map(); // Track user timeouts
+        this.chatStorageService = chatStorageService;
+        this.userWarnings = new Map();
+        this.userTimeouts = new Map();
         this.stats = {
             messagesProcessed: 0,
             actionsTotal: 0,
@@ -22,13 +23,19 @@ class ModerationService {
 
         this.stats.messagesProcessed++;
 
+        // Store chat data regardless of action taken
+        this.chatStorageService.addMessage(message, toxicityScore, category, action);
+
         // Skip moderation for moderators and channel owner
         if (message.author.isModerator || message.author.isOwner) {
             logger.info(`Skipping moderation for privileged user: ${message.author.name}`);
             return;
         }
 
-        logger.info(`Processing message from ${message.author.name}: Score ${toxicityScore}, Action: ${action}`);
+        // Brief log for monitoring
+        if (toxicityScore > 2) {
+            logger.info(`Action: ${action} | User: ${message.author.name} | Score: ${toxicityScore}/10`);
+        }
 
         try {
             switch (action) {
@@ -57,24 +64,11 @@ class ModerationService {
                 this.stats.actionsTotal++;
             }
 
-            // Log the action
-            this.logModerationAction(message, analysis);
-
         } catch (error) {
             if (error.code === 403) {
                 logger.warn(`⚠️  Permission denied: Cannot ${action} user ${message.author.name}`);
-                logger.info(`Detected toxic message (${toxicityScore}/10): "${message.message}"`);
-                logger.info(`Reason: ${reasoning}`);
-                logger.info('💡 Enable full moderation by making bot account a channel moderator');
-                
-                // Log for manual review instead
-                this.logModerationAction(message, {
-                    ...analysis,
-                    action: `${action}_failed_permissions`,
-                    reasoning: `${reasoning} (Action blocked: insufficient permissions)`
-                });
             } else {
-                throw error; // Re-throw other errors
+                throw error;
             }
         }
     }
@@ -138,21 +132,6 @@ class ModerationService {
                 throw error;
             }
         }
-    }
-
-    logModerationAction(message, analysis) {
-        const logData = {
-            timestamp: new Date().toISOString(),
-            user: message.author.name,
-            userId: message.author.channelId,
-            message: message.message,
-            toxicityScore: analysis.toxicityScore,
-            category: analysis.category,
-            action: analysis.action,
-            reasoning: analysis.reasoning
-        };
-
-        logger.info('Moderation Action:', logData);
     }
 
     getStats() {

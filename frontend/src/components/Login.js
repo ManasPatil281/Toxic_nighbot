@@ -48,7 +48,7 @@ function Login() {
         method: "GET",
         credentials: "include",
       });
-
+      console.log("login",response);
       if (!response.ok) {
         throw new Error("Authentication failed");
       }
@@ -57,7 +57,7 @@ function Login() {
       // After successful OAuth, the backend will redirect back to our frontend
       // with the user data
       const userData = await response.json();
-
+      console.log("login",userData);
       // Store user data in localStorage
       localStorage.setItem("userData", JSON.stringify(userData));
 

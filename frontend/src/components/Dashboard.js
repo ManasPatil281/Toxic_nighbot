@@ -54,7 +54,7 @@ const ToxicNightBotDashboard = () => {
 
     const fetchChannelInfo = async () => {
       try {
-        const response = await fetch("http://localhost:3000/api/channel-info", {
+        const response = await fetch("http://localhost:3050/api/channel-info", {
           credentials: "include",
         });
 
@@ -69,7 +69,8 @@ const ToxicNightBotDashboard = () => {
           streamStatus: data.isLive ? "Live" : "Offline",
           chatId: data.chatId,
         });
-
+        console.log("Dashboard -", response);
+        console.log("Dashboard- ", data)
         setIsConnected(true);
         setConnectionStatus("online");
         setStatusText("Connected & Monitoring");

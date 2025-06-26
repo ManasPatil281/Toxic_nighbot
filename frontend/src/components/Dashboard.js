@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
 import {
   Bot,
   Youtube,
@@ -16,10 +15,10 @@ import {
   Download,
   History,
   Circle,
+  RefreshCw,
 } from "lucide-react";
 
 const ToxicNightBotDashboard = () => {
-  const navigate = useNavigate();
   const [isConnected, setIsConnected] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
   const [logs, setLogs] = useState([]);
@@ -28,6 +27,8 @@ const ToxicNightBotDashboard = () => {
   const [userSearch, setUserSearch] = useState("");
   const [connectionStatus, setConnectionStatus] = useState("connecting");
   const [statusText, setStatusText] = useState("Connecting...");
+  const [lastUpdate, setLastUpdate] = useState(null);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   const [channelInfo, setChannelInfo] = useState({
     channelName: "Loading...",
@@ -44,22 +45,34 @@ const ToxicNightBotDashboard = () => {
     bans: 0,
   });
 
+  // Add debug logging function
+  const addDebugLog = (message, level = "info") => {
+    const logEntry = {
+      timestamp: new Date().toISOString(),
+      message,
+      level,
+    };
+    setLogs(prev => [logEntry, ...prev.slice(0, 49)]); // Keep last 50 logs
+  };
+
   // Check for user data and fetch channel info
   useEffect(() => {
+    // Simulated user check - replace with your actual auth logic
     const userData = localStorage.getItem("userData");
     if (!userData) {
-      navigate("/login");
+      console.log("No user data found");
       return;
     }
 
     const fetchChannelInfo = async () => {
       try {
+        addDebugLog("Fetching channel information...");
         const response = await fetch("http://localhost:3050/api/channel-info", {
           credentials: "include",
         });
 
         if (!response.ok) {
-          throw new Error("Failed to fetch channel info");
+          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
         }
 
         const data = await response.json();
@@ -69,83 +82,158 @@ const ToxicNightBotDashboard = () => {
           streamStatus: data.isLive ? "Live" : "Offline",
           chatId: data.chatId,
         });
-        console.log("Dashboard -", response);
-        console.log("Dashboard- ", data)
+        
+        addDebugLog(`✅ Connected to channel: ${data.channelName}`, "info");
+        console.log("Channel Info Response:", data);
+        
         setIsConnected(true);
         setConnectionStatus("online");
         setStatusText("Connected & Monitoring");
       } catch (error) {
         console.error("Error fetching channel info:", error);
+        addDebugLog(`❌ Failed to connect: ${error.message}`, "error");
         setConnectionStatus("offline");
         setStatusText("Connection Failed");
       }
     };
 
     fetchChannelInfo();
-  }, [navigate]);
+  }, []);
 
-  // Fetch real-time stats
+  // Fetch real-time stats with better error handling
   useEffect(() => {
     if (!isConnected) return;
 
     const fetchStats = async () => {
       try {
-        const response = await fetch("http://localhost:3000/api/stats", {
+        const response = await fetch("http://localhost:3050/api/stats", {
           credentials: "include",
         });
 
         if (!response.ok) {
-          throw new Error("Failed to fetch stats");
+          throw new Error(`HTTP ${response.status}: Failed to fetch stats`);
         }
 
         const data = await response.json();
+        const prevStats = { ...stats };
         setStats(data);
+        
+        // Log changes in stats
+        if (data.messagesProcessed !== prevStats.messagesProcessed) {
+          addDebugLog(`📊 Messages processed: ${data.messagesProcessed} (+${data.messagesProcessed - prevStats.messagesProcessed})`);
+        }
+        if (data.deletions !== prevStats.deletions) {
+          addDebugLog(`🗑️ Messages deleted: ${data.deletions} (+${data.deletions - prevStats.deletions})`, "warn");
+        }
+        if (data.bans !== prevStats.bans) {
+          addDebugLog(`🔨 Users banned: ${data.bans} (+${data.bans - prevStats.bans})`, "error");
+        }
+        if (data.timeouts !== prevStats.timeouts) {
+          addDebugLog(`⏰ Users timed out: ${data.timeouts} (+${data.timeouts - prevStats.timeouts})`, "warn");
+        }
+        
+        setLastUpdate(new Date());
+        console.log("Stats Update:", data);
       } catch (error) {
         console.error("Error fetching stats:", error);
+        addDebugLog(`⚠️ Stats fetch failed: ${error.message}`, "error");
       }
     };
 
     // Initial fetch
     fetchStats();
 
-    // Set up polling every 5 seconds
-    const interval = setInterval(fetchStats, 5000);
+    // Set up polling every 3 seconds for more responsive updates
+    const interval = setInterval(fetchStats, 3000);
 
     return () => clearInterval(interval);
-  }, [isConnected]);
+  }, [isConnected, stats]);
 
-  // Fetch moderation history
+  // Fetch moderation history with better error handling
   useEffect(() => {
     if (!isConnected) return;
 
     const fetchModerationHistory = async () => {
       try {
+        setIsRefreshing(true);
         const response = await fetch(
-          "http://localhost:3000/api/moderation-history",
+          "http://localhost:3050/api/moderation-history",
           {
             credentials: "include",
           }
         );
 
         if (!response.ok) {
-          throw new Error("Failed to fetch moderation history");
+          throw new Error(`HTTP ${response.status}: Failed to fetch moderation history`);
         }
 
         const data = await response.json();
+        const prevLength = moderationHistory.length;
         setModerationHistory(data);
+        
+        // Log new moderation actions
+        if (data.length > prevLength) {
+          const newActions = data.length - prevLength;
+          addDebugLog(`🚨 ${newActions} new moderation action(s) detected!`, "warn");
+          
+          // Log the latest action details
+          if (data.length > 0) {
+            const latestAction = data[0];
+            addDebugLog(`Latest: ${latestAction.actionType} - ${latestAction.username} (Score: ${latestAction.toxicityScore || 'N/A'})`, "warn");
+          }
+        }
+        
+        console.log("Moderation History Update:", {
+          totalActions: data.length,
+          newActions: data.length - prevLength,
+          latestActions: data.slice(0, 3)
+        });
       } catch (error) {
         console.error("Error fetching moderation history:", error);
+        addDebugLog(`⚠️ Moderation history fetch failed: ${error.message}`, "error");
+      } finally {
+        setIsRefreshing(false);
       }
     };
 
     // Initial fetch
     fetchModerationHistory();
 
-    // Set up polling every 10 seconds
-    const interval = setInterval(fetchModerationHistory, 10000);
+    // Set up polling every 5 seconds
+    const interval = setInterval(fetchModerationHistory, 5000);
 
     return () => clearInterval(interval);
-  }, [isConnected]);
+  }, [isConnected, moderationHistory.length]);
+
+  // Manual refresh function
+  const manualRefresh = async () => {
+    addDebugLog("🔄 Manual refresh triggered...");
+    setIsRefreshing(true);
+    
+    try {
+      // Fetch all data in parallel
+      const [statsResponse, historyResponse] = await Promise.all([
+        fetch("http://localhost:3050/api/stats", { credentials: "include" }),
+        fetch("http://localhost:3050/api/moderation-history", { credentials: "include" })
+      ]);
+
+      if (statsResponse.ok) {
+        const statsData = await statsResponse.json();
+        setStats(statsData);
+        addDebugLog("✅ Stats refreshed");
+      }
+
+      if (historyResponse.ok) {
+        const historyData = await historyResponse.json();
+        setModerationHistory(historyData);
+        addDebugLog(`✅ History refreshed (${historyData.length} actions)`);
+      }
+    } catch (error) {
+      addDebugLog(`❌ Refresh failed: ${error.message}`, "error");
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
 
   const getStatusDotColor = () => {
     switch (connectionStatus) {
@@ -160,10 +248,12 @@ const ToxicNightBotDashboard = () => {
 
   const clearLogs = () => {
     setLogs([]);
+    addDebugLog("🧹 Logs cleared");
   };
 
   const toggleLogsPause = () => {
     setIsPaused(!isPaused);
+    addDebugLog(isPaused ? "▶️ Logs resumed" : "⏸️ Logs paused");
   };
 
   const exportLogs = () => {
@@ -171,6 +261,7 @@ const ToxicNightBotDashboard = () => {
       logs,
       moderationHistory,
       stats,
+      channelInfo,
       exportTime: new Date().toISOString(),
     };
 
@@ -189,20 +280,23 @@ const ToxicNightBotDashboard = () => {
     document.body.removeChild(a);
 
     URL.revokeObjectURL(url);
+    addDebugLog("📥 Logs exported successfully");
   };
 
   const getFilteredHistory = () => {
     return moderationHistory.filter((action) => {
       const matchesAction =
-        actionFilter === "all" || action.action === actionFilter;
+        actionFilter === "all" || action.action === actionFilter || action.actionType === actionFilter;
       const matchesUser =
         !userSearch ||
-        action.user.toLowerCase().includes(userSearch.toLowerCase());
+        (action.user && action.user.toLowerCase().includes(userSearch.toLowerCase())) ||
+        (action.username && action.username.toLowerCase().includes(userSearch.toLowerCase()));
       return matchesAction && matchesUser;
     });
   };
 
   const getScoreColor = (score) => {
+    if (!score) return "bg-gray-500 text-white";
     if (score <= 3) return "bg-green-500 text-white";
     if (score <= 6) return "bg-yellow-500 text-black";
     return "bg-red-500 text-white";
@@ -235,13 +329,28 @@ const ToxicNightBotDashboard = () => {
               <Bot className="text-red-400" size={32} />
               Toxic NightBot
             </h1>
-            <div className="flex items-center gap-3 bg-slate-700/50 px-4 py-2 rounded-full">
-              <div
-                className={`w-3 h-3 rounded-full ${getStatusDotColor()} animate-pulse shadow-lg`}
-              ></div>
-              <span className="text-sm font-medium">{statusText}</span>
+            <div className="flex items-center gap-4">
+              <button
+                onClick={manualRefresh}
+                disabled={isRefreshing}
+                className="flex items-center gap-2 px-3 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-800 rounded-lg transition-colors text-sm"
+              >
+                <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
+                {isRefreshing ? 'Refreshing...' : 'Refresh'}
+              </button>
+              <div className="flex items-center gap-3 bg-slate-700/50 px-4 py-2 rounded-full">
+                <div
+                  className={`w-3 h-3 rounded-full ${getStatusDotColor()} animate-pulse shadow-lg`}
+                ></div>
+                <span className="text-sm font-medium">{statusText}</span>
+              </div>
             </div>
           </div>
+          {lastUpdate && (
+            <div className="text-xs text-gray-400 mt-2">
+              Last update: {lastUpdate.toLocaleTimeString()}
+            </div>
+          )}
         </div>
 
         {/* Channel Information */}
@@ -353,7 +462,7 @@ const ToxicNightBotDashboard = () => {
           <div className="flex justify-between items-center mb-4">
             <h2 className="text-xl font-semibold flex items-center gap-2 text-red-400">
               <Activity size={24} />
-              Live Activity Log
+              Live Activity Log ({logs.length})
             </h2>
             <div className="flex gap-2">
               <button
@@ -382,7 +491,7 @@ const ToxicNightBotDashboard = () => {
           <div className="bg-slate-900 rounded-lg p-4 h-96 overflow-y-auto font-mono text-sm">
             {logs.length === 0 ? (
               <div className="text-center text-gray-400 py-8">
-                No chat activity yet. Waiting for messages...
+                No activity logged yet. System is monitoring...
               </div>
             ) : (
               logs.map((log, index) => (
@@ -408,10 +517,18 @@ const ToxicNightBotDashboard = () => {
 
         {/* Moderation History */}
         <div className="bg-slate-800 rounded-2xl p-6 shadow-xl border border-slate-700">
-          <h2 className="text-xl font-semibold mb-4 flex items-center gap-2 text-red-400">
-            <History size={24} />
-            Moderation History
-          </h2>
+          <div className="flex justify-between items-center mb-4">
+            <h2 className="text-xl font-semibold flex items-center gap-2 text-red-400">
+              <History size={24} />
+              Moderation History ({moderationHistory.length})
+            </h2>
+            {isRefreshing && (
+              <div className="flex items-center gap-2 text-blue-400">
+                <RefreshCw className="w-4 h-4 animate-spin" />
+                <span className="text-sm">Updating...</span>
+              </div>
+            )}
+          </div>
           <div className="flex flex-col sm:flex-row gap-4 mb-4">
             <select
               value={actionFilter}
@@ -427,7 +544,7 @@ const ToxicNightBotDashboard = () => {
             </select>
             <input
               type="text"
-              placeholder="Search by username or ID..."
+              placeholder="Search by username..."
               value={userSearch}
               onChange={(e) => setUserSearch(e.target.value)}
               className="flex-1 px-4 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-gray-400"
@@ -461,7 +578,9 @@ const ToxicNightBotDashboard = () => {
                 {getFilteredHistory().length === 0 ? (
                   <tr>
                     <td colSpan="6" className="text-center py-8 text-gray-400">
-                      No toxic messages detected yet
+                      {moderationHistory.length === 0 
+                        ? "No moderation actions yet" 
+                        : "No results match your filter"}
                     </td>
                   </tr>
                 ) : (
@@ -474,23 +593,23 @@ const ToxicNightBotDashboard = () => {
                         {new Date(action.timestamp).toLocaleString()}
                       </td>
                       <td className="p-3">
-                        <div className="font-semibold">{action.user}</div>
+                        <div className="font-semibold">{action.user || action.username}</div>
                         <div className="text-xs text-gray-400 font-mono">
-                          {action.userId.substring(0, 12)}...
+                          {(action.userId || '').substring(0, 12)}...
                         </div>
                       </td>
                       <td className="p-3 max-w-xs">
                         <div className="bg-slate-700 p-2 rounded italic text-sm">
-                          "{action.message}"
+                          "{action.message || action.text}"
                         </div>
                       </td>
                       <td className="p-3">
                         <span
                           className={`px-2 py-1 rounded-full text-xs font-semibold ${getActionBadgeColor(
-                            action.action
+                            action.action || action.actionType
                           )}`}
                         >
-                          {action.action}
+                          {action.action || action.actionType}
                         </span>
                       </td>
                       <td className="p-3">
@@ -499,11 +618,11 @@ const ToxicNightBotDashboard = () => {
                             action.toxicityScore
                           )}`}
                         >
-                          {action.toxicityScore}/10
+                          {action.toxicityScore || 'N/A'}/10
                         </span>
                       </td>
                       <td className="p-3 text-xs text-gray-400">
-                        {action.reasoning}
+                        {action.reasoning || action.reason || 'No reason provided'}
                       </td>
                     </tr>
                   ))

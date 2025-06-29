@@ -237,15 +237,15 @@ const ToxicNightBotDashboard = () => {
         const response = await fetch("http://localhost:3050/api/channel-info", {
           credentials: "include",
         });
-        
+        console.log(response)
         if (!response.ok) {
           throw new Error(`HTTP ${response.status}: ${response.statusText}`);
         }
         
         const data = await response.json();
-        
+        console.log("yt-channel",data)
         if (isUnmountedRef.current) return;
-        
+        console.log("isUnMountedRef",isUnmountedRef)
         setChannelInfo({
           channelName: data.channelName,
           channelId: data.channelId,
@@ -270,7 +270,10 @@ const ToxicNightBotDashboard = () => {
     fetchChannelInfo();
   }, [location, addDebugLog]);
 
-
+  useEffect(() => {
+    console.log("Channel info updated:", channelInfo);
+  }, [channelInfo]);
+  
   useEffect(() => {
     if (!isConnected) {
       stopPolling();

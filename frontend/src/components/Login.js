@@ -39,35 +39,19 @@ function Login() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setIsLoading(true);
-    setError("");
-
-    try {
-      // Call the backend auth endpoint
-      const response = await fetch("http://localhost:3050/auth", {
-        method: "GET",
-        credentials: "include",
-      });
-      console.log("login",response);
-      if (!response.ok) {
-        throw new Error("Authentication failed");
-      }
-
-      // The backend will redirect to YouTube OAuth
-      // After successful OAuth, the backend will redirect back to our frontend
-      // with the user data
-      const userData = await response.json();
-      console.log("login",userData);
-      // Store user data in localStorage
-      localStorage.setItem("userData", JSON.stringify(userData));
-
-      // Navigate to dashboard
-      navigate("/dashboard");
-    } catch (err) {
-      setError("Authentication failed. Please try again.");
-      setIsLoading(false);
+  
+    if (!channelId.startsWith("UC")) {
+      setError("Please enter a valid YouTube Channel ID");
+      return;
     }
+  
+    // Store the channel ID (if needed later by backend, store in session/cookie)
+    localStorage.setItem("channelId", channelId);
+  
+    // 🔥 Redirect the browser to the backend's /auth route
+    window.location.href = "http://localhost:3050/auth";
   };
+  
 
   return (
     <Fade in={true} timeout={1000}>
